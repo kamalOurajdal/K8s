@@ -1,0 +1,33 @@
+services:
+  users-service:
+    build:
+      context: ./users
+    environment:
+      SERVICE_NAME: users-service
+      FLASK_ENV: development
+    ports:
+      - "5001:5000"
+
+  products-service:
+    build:
+      context: ./products
+    environment:
+      SERVICE_NAME: products-service
+      FLASK_ENV: development
+    ports:
+      - "5002:5000"
+
+  orders-service:
+    build:
+      context: ./orders
+    environment:
+      SERVICE_NAME: orders-service
+      USERS_SERVICE_URL: http://users-service:5000
+      PRODUCTS_SERVICE_URL: http://products-service:5000
+      FLASK_ENV: development
+    ports:
+      - "5003:5000"
+    depends_on:
+      - users-service
+      - products-service
+

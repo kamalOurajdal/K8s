@@ -12,4 +12,12 @@ class ServiceClient:
             return None
         response.raise_for_status()
         return response.json()["data"]
+    
+    def post(self, path, data):
+        response = requests.post(f"{self.base_url}{path}", json=data, timeout=self.timeout)
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        return response.json()["data"]
+        
 

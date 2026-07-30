@@ -35,3 +35,9 @@ class ServiceClient:
         return response.json()["data"]
         
 
+    def delete(self, path):
+        response = requests.delete(f"{self.base_url}{path}", timeout=self.timeout)
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        return response.json()["data"]

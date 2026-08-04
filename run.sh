@@ -19,6 +19,13 @@ if [ $# -lt 1 ]; then
   exit 1
 fi
 
+case "$1" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+esac
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE="${1#/}"
 SERVICE="${SERVICE%/}"

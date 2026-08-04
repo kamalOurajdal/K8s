@@ -1,109 +1,105 @@
-#!/bin/bash
-# -----------------------------------------------------------------------------
-# Usage: ./run.sh <folder_name> [--port N]
-# This script auto-detects if a service is Flask or Angular and starts it.
-# -----------------------------------------------------------------------------
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Get the absolute path of the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+usage() {
+  cat <<'EOF'
+Usage: ./run.sh <users|products|orders> [--port N] [--no-install]
 
-# Capture the first argument as FOLDER; if empty, print usage and stop and remove '/' in the end if it exists
-FOLDER="${1:?Usage: run.sh <folder> [--port N]}"
-FOLDER="${FOLDER#/}"
-FOLDER="${FOLDER%/}"
+Runs one Flask microservice locally.
 
-VENV_DIR="venv"
+Default ports:
+  users     5001
+  products  5002
+  orders    5003
+EOF
+}
 
-# Shift the arguments so that $1 becomes the next item (handling flags like --port)
+if [ $# -lt 1 ]; then
+  usage
+  exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVICE="${1#/}"
+SERVICE="${SERVICE%/}"
 shift
 
-# --- SET TERMINAL TITLE ---
-# \033]0; sets the title, \007 ends the sequence. This labels the window/tab.
-echo -ne "\033]0;${FOLDER}\007"
-
-# Initialize an empty variable for the port argument
 PORT_ARG=""
+INSTALL_DEPS=1
 
-# Loop through remaining arguments to find the --port flag
 while [ $# -gt 0 ]; do
   case "$1" in
     --port)
-      PORT_ARG="$2" # Assign the number following --port to PORT_ARG
-      shift 2        # Skip both '--port' and the number
+      if [ $# -lt 2 ] || [[ "$2" == --* ]]; then
+        echo "[ERROR] --port requires a value"
+        exit 1
+      fi
+      PORT_ARG="$2"
+      shift 2
+      ;;
+    --no-install)
+      INSTALL_DEPS=0
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
       ;;
     *)
-      shift          # Skip any other unknown arguments
+      echo "[ERROR] Unknown argument: $1"
+      usage
+      exit 1
       ;;
   esac
 done
 
-# Define the full path to the target service folder
-DIR="$SCRIPT_DIR/$FOLDER"
+case "$SERVICE" in
+  users) DEFAULT_PORT=5001 ;;
+  products) DEFAULT_PORT=5002 ;;
+  orders) DEFAULT_PORT=5003 ;;
+  *)
+    echo "[ERROR] Unknown service: $SERVICE"
+    usage
+    exit 1
+    ;;
+esac
 
-# Safety check: Exit if the folder provided does not exist
-if [ ! -d "$DIR" ]; then
-  echo "[ERROR] Folder not found: $FOLDER"
+SERVICE_DIR="$SCRIPT_DIR/$SERVICE"
+VENV_DIR="$SERVICE_DIR/venv"
+PORT="${PORT_ARG:-$DEFAULT_PORT}"
+
+if [ ! -f "$SERVICE_DIR/run.py" ]; then
+  echo "[ERROR] Expected Flask entrypoint not found: $SERVICE/run.py"
   exit 1
 fi
 
-# -----------------------------------------------------------------------------
-# FLASK (PYTHON) DETECTION LOGIC
-# -----------------------------------------------------------------------------
-# Check if application.py exists in the folder
-if [ -f "$DIR/application.py" ]; then
-  export FLASK_APP="application.py"
-  
-  # Look for the virtual environment activation script (Windows path)
-  if [ -f "$DIR/$VENV_DIR/Scripts/activate" ]; then
-    source "$DIR/$VENV_DIR/Scripts/activate"
-    
-  # Look for the virtual environment activation script (Linux/Mac path)
-  elif [ -f "$DIR/$VENV_DIR/bin/activate" ]; then
-    source "$DIR/$VENV_DIR/bin/activate"
-    
-  else
-    # If no virtual environment is found, warn the user and exit
-    echo "[ERROR] $FOLDER: venv not found. Create it with: cd $FOLDER && python -m venv $VENV_DIR"
-    exit 1
+echo -ne "\033]0;${SERVICE}\007"
+
+if [ ! -x "$VENV_DIR/bin/python" ]; then
+  echo "Creating virtual environment for $SERVICE..."
+  python3 -m venv "$VENV_DIR"
+fi
+
+source "$VENV_DIR/bin/activate"
+
+if [ "$INSTALL_DEPS" -eq 1 ]; then
+  REQUIREMENTS_FILE="$SERVICE_DIR/requirements-dev.txt"
+  if [ ! -f "$REQUIREMENTS_FILE" ]; then
+    REQUIREMENTS_FILE="$SERVICE_DIR/requirements.txt"
   fi
 
-  case "$FOLDER" in
-    ep-api) PORT="${PORT_ARG:-5000}" ;; # API default
-    ep-auth) PORT="${PORT_ARG:-5010}" ;; # Auth default
-    ep-bot) PORT="${PORT_ARG:-5001}" ;; # Bot default
-    *)     PORT="${PORT_ARG:-5000}" ;; # Any other Flask app default
-  esac
-
-  echo "Starting $FOLDER (Flask) on port $PORT..."
-  
-  # Move into the service directory
-  cd "$DIR" || exit 1
-  
-  # Execute the python application
-  echo "flask run --port $PORT"
-  python -m flask run --port $PORT --debug
-  exit 0
+  echo "Installing dependencies from ${REQUIREMENTS_FILE#$SCRIPT_DIR/}..."
+  python -m pip install -r "$REQUIREMENTS_FILE"
 fi
 
-# -----------------------------------------------------------------------------
-# ANGULAR DETECTION LOGIC
-# -----------------------------------------------------------------------------
-# Check if both package.json and angular.json exist
-if [ -f "$DIR/package.json" ] && [ -f "$DIR/angular.json" ]; then
-  
-  # Assign default ports based on the specific folder name
-  case "$FOLDER" in
-    ep-fo) PORT="${PORT_ARG:-4200}" ;; # Front Office default
-    ep-bo) PORT="${PORT_ARG:-4201}" ;; # Back Office default
-    *)     PORT="${PORT_ARG:-4200}" ;; # Any other Angular app default
-  esac
+export FLASK_APP=run:app
+export FLASK_ENV=development
 
-  echo "Starting $FOLDER (Angular) on port $PORT..."
-  
-  # Move into the service directory
-  cd "$DIR" || exit 1
-  
-  # Run the Angular dev server using npx (local project dependency)
-  npx ng serve --port "$PORT"
-  exit 0
+if [ "$SERVICE" = "orders" ]; then
+  export USERS_SERVICE_URL="${USERS_SERVICE_URL:-http://localhost:5001}"
+  export PRODUCTS_SERVICE_URL="${PRODUCTS_SERVICE_URL:-http://localhost:5002}"
 fi
+
+cd "$SERVICE_DIR"
+echo "Starting $SERVICE on http://localhost:$PORT"
+python -m flask run --host 0.0.0.0 --port "$PORT" --debug

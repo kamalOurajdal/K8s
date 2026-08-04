@@ -1,7 +1,4 @@
-#!/bin/bash
 
-# Local Development Setup Script for ep-lib microservices
-# This script sets up a service for local development with ep-lib
 
 set -e
 

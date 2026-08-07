@@ -72,7 +72,7 @@ case "$SERVICE" in
 esac
 
 SERVICE_DIR="$SCRIPT_DIR/$SERVICE"
-VENV_DIR="$SERVICE_DIR/venv"
+VENV_DIR="$SERVICE_DIR/.venv"
 PORT="${PORT_ARG:-$DEFAULT_PORT}"
 
 if [ ! -f "$SERVICE_DIR/run.py" ]; then

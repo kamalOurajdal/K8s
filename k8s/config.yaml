@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: microservices-config
+  namespace: flask-microservices
+data:
+  USERS_SERVICE_HOST: users-service
+  USERS_SERVICE_PORT: "5001"
+  PRODUCTS_SERVICE_HOST: products-service
+  PRODUCTS_SERVICE_PORT: "5002"
+  ORDERS_SERVICE_HOST: orders-service
+  ORDERS_SERVICE_PORT: "5000"
